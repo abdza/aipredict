@@ -8,9 +8,15 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 import time
+import argparse
 
-def download_stock_data(symbol, period, interval):
-    end_date = datetime.now()
+def parse_args():
+    parser = argparse.ArgumentParser(description="Stock data analysis with custom end date")
+    parser.add_argument("--end_date", type=str, help="End date for data collection (YYYY-MM-DD)", required=True)
+    return parser.parse_args()
+
+def download_stock_data(symbol, period, interval, end_date):
+    end_date = pd.to_datetime(end_date)
     start_date = end_date - timedelta(days=period)
     data = yf.download(symbol, start=start_date, end=end_date, interval=interval)
     data['Symbol'] = symbol
@@ -70,8 +76,12 @@ def rank_tickers(predictions_df):
     return ranked_tickers
 
 def main():
+    args = parse_args()
+    end_date = args.end_date
+    
     start_time = time.time()
     
+    print(f"Analysis end date: {end_date}")
     print("Reading stock symbols...")
     df_stocks = pd.read_csv('stocks.csv')
     symbols = df_stocks['Symbol'].tolist()
@@ -79,11 +89,11 @@ def main():
     print(f"Downloading data for {len(symbols)} stocks...")
     for symbol in tqdm(symbols, desc="Downloading stock data"):
         # Download 15-minute data for the past month
-        data_15min = download_stock_data(symbol, 30, '15m')
+        data_15min = download_stock_data(symbol, 30, '15m', end_date)
         save_to_database(data_15min, 'summarytickers.db', 'stock_data_15min')
 
         # Download daily data for the past month
-        data_daily = download_stock_data(symbol, 30, '1d')
+        data_daily = download_stock_data(symbol, 30, '1d', end_date)
         save_to_database(data_daily, 'summarytickers.db', 'stock_data_daily')
 
     print("Preparing data for machine learning...")
@@ -121,7 +131,7 @@ def main():
     print(ranked_tickers)
 
     print("\nSaving ranked tickers to CSV file...")
-    ranked_tickers.to_csv('ranked_tickers.csv', header=True)
+    ranked_tickers.to_csv(f'ranked_tickers_{end_date}.csv', header=True)
 
     print("\nFeature Importances:")
     feature_importance = pd.DataFrame({'feature': features, 'importance': model.feature_importances_})
